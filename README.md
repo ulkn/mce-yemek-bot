@@ -120,6 +120,8 @@ PC kapalı veya uykudaysa:
 | `*.workers.dev` engelli ama Cloudflare'de alan adın var | Worker → Settings → Domains & Routes → kendi alt alan adını ekle (ör. `yemek.alanadin.com`) ve `relay_url` alanına onu yaz |
 | "🔐 Portal oturumu düşmüş" | `giris_yap.bat` |
 | relay modunda "Conflict: webhook is active" | `/setup?key=...` sayfasını aç. Relay modunda webhook'u siler |
+| Kurulumda `Microsoft Visual C++ 14.0 or greater is required` | Güncel `kurulum.bat` ve `requirements.txt` ile çözülür (hazır paket kullanılır). Repoyu yeniden indir |
+| Başka PC'den kopyalanan klasör çalışmıyor | `.venv` klasörünü sil ve `kurulum.bat` dosyasını yeniden çalıştır. Güncel `kurulum.bat` bunu kendisi yapar |
 | AKINCI yerine 3. Vardiya | `"menu_url": ".../intranet/portal/meal/2"` |
 
 **Çevrimdışı paket kurulumu** (PyPI kapalıysa): İnternete açık bir bilgisayarda şunu çalıştır:
