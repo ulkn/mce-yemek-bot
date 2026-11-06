@@ -154,7 +154,7 @@ class YemekBot:
     def _card(self, d: date) -> bytes:
         menu = self.store.get(d)
         today = date.today()
-        html = build_html(menu, self.store.title, today)
+        html = build_html(menu, self.store.title, today, self.cfg.get("card_theme", "acik"))
         key = hashlib.md5(html.encode("utf-8")).hexdigest()
         if key not in self.png_cache:
             if len(self.png_cache) > 30:
@@ -396,7 +396,7 @@ def main():
         d = parse_day_query(args.gun, date.today()) or date.today()
         menu = store.get(d) or store.get(days[0])
         out = BASE / "card_test.jpg"
-        out.write_bytes(render_png(build_html(menu, store.title), cfg))
+        out.write_bytes(render_png(build_html(menu, store.title, theme=cfg.get("card_theme", "acik")), cfg))
         print(f"🖼️ {menu.label} kartı → {out}")
         return
 

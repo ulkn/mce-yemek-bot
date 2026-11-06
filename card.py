@@ -9,22 +9,42 @@ from datetime import date
 
 from menu import DayMenu, MenuItem, day_name, human_date, tr_lower
 
-# Tema: koyu lacivert + koyu kırmızı (TUSAŞ kurumsal tonları)
-NAVY_BG = "#07122a"      # sayfa
-NAVY_CARD = "#0b1b3d"    # kart
-NAVY_PANEL = "#11264f"   # bölüm zemini
-NAVY_LINE = "#22396b"    # çizgiler / kenarlar
-RED = "#a3161f"          # koyu kırmızı vurgu
+# TUSAŞ kurumsal renk paleti
+WHITE = "#FFFFFF"         # Pantone White
+RED = "#DD140E"           # Pantone 485 C
+BLUE = "#1E3685"          # Pantone Reflex Blue (RGB 30/54/133)
+GRAY7 = "#97999B"         # Pantone Cool Gray 7 C
+GRAY11 = "#4D4D4D"        # Pantone Cool Gray 11
+BLACK = "#2D2926"         # Pantone Black
+# Eski koyu tema tonları
+NAVY = "#0b1b3d"
+NAVY_DEEP = "#07122a"
 RED_DARK = "#6e0f16"
-TEXT = "#e8ecf4"
-MUTED = "#9aa8c4"
 
-# bölüm adı (küçük harf) -> sol kenar rengi
-SECTION_ACCENT = {
-    "günün menüsü": RED,
-    "salata büfesi": "#3d5fa8",
+THEMES = {
+    # Açık zemin; kurumsal mavi ve kırmızı vurgu, yazılar kurumsal siyah/gri
+    "acik": {
+        "page": "#EFEFF0", "card": WHITE, "card_border": "#DCDDDE", "shadow": "rgba(45,41,38,.10)",
+        "hero_bg": WHITE, "hero_loc": GRAY7, "hero_date": BLUE, "hero_day": GRAY11,
+        "panel": WHITE, "panel_border": "#E3E4E5", "h2": BLUE, "text": BLACK,
+        "line": "rgba(151,153,155,.35)", "veg_bg": "#FDECEB", "veg_border": "#F4B4B1",
+        "kcal_bg": WHITE, "kcal_border": "#CFD0D1", "kcal_text": GRAY11,
+        "wheat": "#ECECED", "milk": "#DDE2F0", "muted": GRAY11, "legend": GRAY11,
+        "accent_main": RED, "accent_other": BLUE, "tag": RED, "stripe": RED,
+    },
+    # Koyu lacivert zemin
+    "koyu": {
+        "page": NAVY_DEEP, "card": NAVY, "card_border": "#22396b", "shadow": "rgba(0,0,0,.45)",
+        "hero_bg": f"linear-gradient(120deg, #0a1a40 0%, #102a63 58%, {RED_DARK} 100%)",
+        "hero_loc": "#9aa8c4", "hero_date": "#ffffff", "hero_day": "#c9d3e6",
+        "panel": "#11264f", "panel_border": "#22396b", "h2": "#ffffff", "text": "#e8ecf4",
+        "line": "rgba(255,255,255,.09)", "veg_bg": "rgba(163,22,31,.16)", "veg_border": "rgba(163,22,31,.55)",
+        "kcal_bg": NAVY, "kcal_border": "#22396b", "kcal_text": "#c9d3e6",
+        "wheat": "#4a3f12", "milk": "#1d3f6e", "muted": "#9aa8c4", "legend": "#c9d3e6",
+        "accent_main": "#a3161f", "accent_other": "#3d5fa8", "tag": "#a3161f", "stripe": "#a3161f",
+    },
 }
-DEFAULT_ACCENT = "#3d5fa8"
+DEFAULT_THEME = "acik"
 
 
 def _e(s: str) -> str:
@@ -96,7 +116,8 @@ def _relative_tag(d: date, today: date) -> str:
     return {0: "BUGÜN", 1: "YARIN", -1: "DÜN"}.get(diff, "")
 
 
-def build_html(menu: DayMenu, title: str, today: date | None = None) -> str:
+def build_html(menu: DayMenu, title: str, today: date | None = None, theme: str = DEFAULT_THEME) -> str:
+    T = THEMES.get(theme, THEMES[DEFAULT_THEME])
     today = today or date.today()
     d = menu.date
     rel = _relative_tag(d, today)
@@ -106,7 +127,7 @@ def build_html(menu: DayMenu, title: str, today: date | None = None) -> str:
     sections_html = []
     for sec in ([main] if main else []) + others:
         key = tr_lower(sec.title)
-        accent = SECTION_ACCENT.get(key, DEFAULT_ACCENT)
+        accent = T["accent_main"] if key == "günün menüsü" else T["accent_other"]
         total = sum(i.kcal for i in sec.items if i.kcal)
         total_html = f'<span class="total">≈ {total:,} kcal</span>'.replace(",", ".") if total and key != "salata büfesi" else ""
         rows = []
@@ -129,46 +150,45 @@ def build_html(menu: DayMenu, title: str, today: date | None = None) -> str:
   * {{ box-sizing: border-box; margin: 0; padding: 0; }}
   body {{
     font-family: Consolas, "DejaVu Sans Mono", "Courier New", monospace;
-    background: {NAVY_BG}; width: 720px; padding: 22px; color: {TEXT};
+    background: {T["card"]}; width: 720px; padding: 0; color: {T["text"]};
   }}
-  .card {{ background: {NAVY_CARD}; border: 1px solid {NAVY_LINE}; border-radius: 22px; overflow: hidden;
-          box-shadow: 0 12px 34px rgba(0, 0, 0, .45); }}
+  .card {{ background: {T["card"]}; overflow: hidden; }}
   .hero {{
     position: relative; padding: 26px 30px 22px;
-    background: linear-gradient(120deg, #0a1a40 0%, #102a63 58%, {RED_DARK} 100%);
-    border-bottom: 4px solid {RED};
+    background: {T["hero_bg"]};
+    border-bottom: 4px solid {T["stripe"]};
   }}
-  .hero .loc {{ font-size: 15px; letter-spacing: 3px; text-transform: uppercase; color: {MUTED}; font-weight: 700; }}
-  .hero .date {{ font-size: 40px; font-weight: 700; margin-top: 8px; line-height: 1.1; color: #fff; }}
-  .hero .day {{ font-size: 21px; margin-top: 4px; color: #c9d3e6; }}
-  .tag {{ display: inline-block; background: {RED}; color: #fff; font-weight: 700; font-size: 13px;
+  .hero .loc {{ font-size: 15px; letter-spacing: 3px; text-transform: uppercase; color: {T["hero_loc"]}; font-weight: 700; }}
+  .hero .date {{ font-size: 40px; font-weight: 700; margin-top: 8px; line-height: 1.1; color: {T["hero_date"]}; }}
+  .hero .day {{ font-size: 21px; margin-top: 4px; color: {T["hero_day"]}; }}
+  .tag {{ display: inline-block; background: {T["tag"]}; color: #fff; font-weight: 700; font-size: 13px;
           padding: 4px 12px; border-radius: 6px; letter-spacing: 2px; margin-left: 12px; vertical-align: 7px; }}
   .body {{ padding: 20px 22px 6px; }}
-  section {{ background: {NAVY_PANEL}; border: 1px solid {NAVY_LINE}; border-left: 6px solid var(--c);
+  section {{ background: {T["panel"]}; border: 1px solid {T["panel_border"]}; border-left: 6px solid var(--c);
              border-radius: 14px; padding: 14px 16px 8px; margin-bottom: 14px; }}
-  h2 {{ font-size: 18px; color: #fff; display: flex; align-items: center; margin-bottom: 6px;
+  h2 {{ font-size: 18px; color: {T["h2"]}; display: flex; align-items: center; margin-bottom: 6px;
         letter-spacing: 1px; text-transform: uppercase; }}
-  h2 .total {{ margin-left: auto; font-size: 13px; font-weight: 700; color: #fff; background: {RED};
+  h2 .total {{ margin-left: auto; font-size: 13px; font-weight: 700; color: #fff; background: {T["tag"]};
                padding: 3px 10px; border-radius: 6px; letter-spacing: 0; text-transform: none; }}
   ul {{ list-style: none; }}
-  li {{ display: flex; align-items: center; padding: 8px 4px; border-bottom: 1px dashed rgba(255,255,255,.09);
-        font-size: 18px; color: {TEXT}; }}
+  li {{ display: flex; align-items: center; padding: 8px 4px; border-bottom: 1px dashed {T["line"]};
+        font-size: 18px; color: {T["text"]}; }}
   li:last-child {{ border-bottom: 0; }}
-  li.veg {{ background: rgba(163, 22, 31, .16); border: 1px solid rgba(163, 22, 31, .55); border-radius: 10px;
+  li.veg {{ background: {T["veg_bg"]}; border: 1px solid {T["veg_border"]}; border-radius: 10px;
             padding: 7px 10px; margin: 4px 0 6px; font-size: 17px; }}
-  .vtag {{ display: inline-block; font-size: 12px; font-weight: 700; color: #fff; background: {RED};
+  .vtag {{ display: inline-block; font-size: 12px; font-weight: 700; color: #fff; background: {T["tag"]};
            border-radius: 5px; padding: 2px 8px; margin-right: 10px; vertical-align: 2px; letter-spacing: 1px; }}
   .nm {{ flex: 1; font-weight: 700; }}
   .meta {{ display: flex; align-items: center; gap: 6px; }}
   .al {{ font-size: 14px; border-radius: 6px; padding: 2px 5px;
          font-family: "Segoe UI Emoji", "Noto Color Emoji", "Apple Color Emoji", sans-serif; }}
-  .al.w {{ background: #4a3f12; }}
-  .al.m {{ background: #1d3f6e; }}
-  .kcal {{ font-size: 13px; color: #c9d3e6; background: {NAVY_CARD}; border: 1px solid {NAVY_LINE};
+  .al.w {{ background: {T["wheat"]}; }}
+  .al.m {{ background: {T["milk"]}; }}
+  .kcal {{ font-size: 13px; color: {T["kcal_text"]}; background: {T["kcal_bg"]}; border: 1px solid {T["kcal_border"]};
            border-radius: 6px; padding: 2px 8px; white-space: nowrap; }}
-  .foot {{ padding: 4px 26px 20px; color: {MUTED}; font-size: 13px; }}
-  .legend {{ display: flex; gap: 22px; margin-bottom: 10px; color: #c9d3e6; }}
-  .foot ul li {{ font-size: 12.5px; color: {MUTED}; border: 0; padding: 2px 0; display: block; }}
+  .foot {{ padding: 4px 26px 20px; color: {T["muted"]}; font-size: 13px; }}
+  .legend {{ display: flex; gap: 22px; margin-bottom: 10px; color: {T["legend"]}; }}
+  .foot ul li {{ font-size: 12.5px; color: {T["muted"]}; border: 0; padding: 2px 0; display: block; }}
 </style></head>
 <body><div class="card">
   <div class="hero">
