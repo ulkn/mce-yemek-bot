@@ -1,0 +1,1 @@
+{"ops": [{"method": "sendMessage", "params": {"chat_id": 7705162885, "parse_mode": "HTML", "text": "⛔ Bu bot özel.\nSohbet kimliğin: <code>7705162885</code>\nKendi botunsa bu sayıyı config.json → allowed_chat_ids içine ekle."}, "files": {}}]}
