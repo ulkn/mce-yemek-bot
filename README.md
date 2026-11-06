@@ -58,7 +58,7 @@ Sonra Actions → **"Worker'ı yayınla"** → **Run workflow**.
 **Elle:** Cloudflare → Workers & Pages → `mce-yemek-worker` → Edit code → `worker/worker.js` dosyasını yapıştır → Deploy.
 Elle yayınlarsan Settings bölümünde şunları da ekle:
 - Variables: `GITHUB_REPO = ulkn/mce-yemek-bot`, `GITHUB_BRANCH = posta`
-- Triggers → Cron: `* * * * *`
+- Triggers → Cron: `* * * * *` (isteğe bağlı. Panel eklemezse atla, repo webhook'u yeterli)
 
 ### 2b) Worker değişkenleri (Cloudflare → mce-yemek-worker → Settings → Variables and Secrets)
 | Ad | Tür | Değer |
@@ -96,8 +96,9 @@ Talepler ve kartlar `ulkn/mce-yemek-bot` reposunun **`posta`** dalına yazılır
 "github": { "repo": "ulkn/mce-yemek-bot", "token": "<PC token>", "branch": "posta", "poll_seconds": 6 },
 "allowed_chat_ids": [123456789]
 ```
-Repo webhook'u (push → Worker `/github`) kurulu olursa cevaplar birkaç saniyede gelir.
-Kurulu değilse Worker dakikada bir kontrol eder.
+**Repo webhook'u gerekli:** repo → Settings → Webhooks → Add webhook.
+Payload URL `https://mce-yemek-worker.cahit-tr.workers.dev/github`, content type `application/json`, olay olarak yalnızca push.
+Kaçan bir cevap olursa Worker onu bir sonraki Telegram mesajında gönderir. Cron kuruluysa dakikada bir de kontrol eder.
 
 **Relay'den GitHub moduna (veya tersine) geçiş:** Worker'daki `GITHUB_TOKEN` secret'ını ekle veya sil, sonra `/setup` sayfasını yeniden aç.
 

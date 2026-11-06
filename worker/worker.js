@@ -22,7 +22,7 @@
  *   GITHUB_BRANCH        (text)    "posta"  (posta kutusu dalı; wrangler.toml'da tanımlı)
  *   GITHUB_WEBHOOK_SECRET(secret)  (isteğe bağlı) repo webhook imza anahtarı
  *   KV binding adı "KV"  (isteğe bağlı) Telegram file_id önbelleği + çift gönderim koruması
- *   Cron Trigger: "* * * * *"  (GitHub webhook kurulmasa da outbox'ı dakikada bir işler)
+ *   Cron Trigger: "* * * * *"  (isteğe bağlı; kurulamazsa her yeni Telegram mesajında da kontrol edilir)
  */
 
 const COMMANDS = [
@@ -104,6 +104,9 @@ async function onTelegram(req, env, ctx) {
   const now = Date.now();
   u._received = now;
   await ghPutText(env, `inbox/${now}-${u.update_id}.json`, JSON.stringify(u), `inbox ${u.update_id}`);
+
+  // Cron kurulamazsa yedek: webhook'u kaçırılmış (30 sn'den eski) cevapları şimdi gönder
+  ctx.waitUntil(processOutbox(env, { minAgeMs: 30_000 }).catch(e => console.log("outbox yedek", e.message)));
 
   // PC kapalı mı? Bekleyen eski bir talep varsa kullanıcıyı uyar.
   ctx.waitUntil((async () => {
