@@ -22,16 +22,11 @@ import time
 from datetime import date, timedelta
 from pathlib import Path
 
-try:
-    import truststore  # Windows sertifika deposunu kullan (şirket SSL denetimi)
-    truststore.inject_into_ssl()
-except Exception:
-    pass
-
 BASE = Path(__file__).resolve().parent
 sys.path.insert(0, str(BASE))
 
 from card import build_html, build_text, render_png  # noqa: E402
+from netfix import setup_ssl  # noqa: E402
 from transports import TelegramError, make_transport  # noqa: E402
 from menu import (LoginRequired, MenuStore, TR_MONTHS, day_name,  # noqa: E402
                   human_date, interactive_login, tr_lower)
@@ -384,6 +379,7 @@ def main():
         handlers=([logging.StreamHandler()] if sys.stderr else [])
         + [logging.FileHandler(BASE / "bot.log", encoding="utf-8")])
     cfg = load_config()
+    log.info("SSL: %s", setup_ssl(cfg, BASE))
 
     if args.login:
         ok = interactive_login(cfg)

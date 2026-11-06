@@ -22,5 +22,6 @@
   "ignore_https_errors": false,
 
   "proxy": "",
-  "ca_bundle": ""
+  "ca_bundle": "",
+  "ssl_verify": true
 }

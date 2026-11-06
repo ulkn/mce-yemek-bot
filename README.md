@@ -115,7 +115,7 @@ PC kapalı veya uykudaysa:
 ## Olası sorunlar
 | Belirti | Çözüm |
 |---|---|
-| Test SSL hatası veriyor | `truststore` kurulumu çoğu durumda çözer (Python 3.10+). Olmazsa şirket kök sertifikasını .pem olarak dışa aktar ve `"ca_bundle"` alanına yolunu yaz |
+| Test SSL hatası veriyor | Bot şirket sertifikasını Windows deposundan kendisi alır (Python 3.10+ truststore, 3.9 için windows_ca.pem). Yine olmazsa son çare: `"ssl_verify": false` |
 | Bağlantı için proxy gerekiyor | `"proxy": "http://proxy.sirket:8080"`; pip için kurulumdan önce `set HTTPS_PROXY=...` |
 | `*.workers.dev` engelli ama Cloudflare'de alan adın var | Worker → Settings → Domains & Routes → kendi alt alan adını ekle (ör. `yemek.alanadin.com`) ve `relay_url` alanına onu yaz |
 | "🔐 Portal oturumu düşmüş" | `giris_yap.bat` |

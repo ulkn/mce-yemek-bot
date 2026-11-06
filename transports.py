@@ -23,8 +23,7 @@ def _session(cfg: dict) -> requests.Session:
     s = requests.Session()
     if cfg.get("proxy"):
         s.proxies = {"http": cfg["proxy"], "https": cfg["proxy"]}
-    if cfg.get("ca_bundle"):
-        s.verify = cfg["ca_bundle"]
+    s.verify = cfg.get("_verify", cfg.get("ca_bundle") or True)
     return s
 
 

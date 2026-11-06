@@ -10,3 +10,4 @@ __pycache__/
 *.pyc
 worker/.wrangler/
 worker/node_modules/
+windows_ca.pem

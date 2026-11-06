@@ -11,12 +11,6 @@ import sys
 import urllib.request
 from pathlib import Path
 
-try:
-    import truststore  # Windows sertifika deposunu kullan (şirket SSL denetimi için)
-    truststore.inject_into_ssl()
-except Exception:
-    pass
-
 import requests
 
 for stream in (sys.stdout, sys.stderr):
@@ -26,6 +20,9 @@ for stream in (sys.stdout, sys.stderr):
 BASE = Path(__file__).resolve().parent
 CFG_PATH = BASE / "config.json"
 cfg = json.loads(CFG_PATH.read_text(encoding="utf-8")) if CFG_PATH.exists() else {}
+sys.path.insert(0, str(BASE))
+from netfix import setup_ssl  # noqa: E402
+SSL_INFO = setup_ssl(cfg, BASE)
 
 relay = (cfg.get("relay_url") or "").rstrip("/")
 TARGETS = [
@@ -41,8 +38,7 @@ def session(proxy: str | None, use_system: bool = True) -> requests.Session:
     s.trust_env = use_system
     if proxy:
         s.proxies = {"http": proxy, "https": proxy}
-    if cfg.get("ca_bundle"):
-        s.verify = cfg["ca_bundle"]
+    s.verify = cfg["_verify"]
     return s
 
 
@@ -147,6 +143,7 @@ def save_proxy(p: str):
 
 ICON = {"ok": "✅", "auth": "🔐", "ssl": "⚠️ ", "fail": "❌"}
 
+print(f"\nSSL: {SSL_INFO}")
 print("\n=== 1) Varsayılan ayarlarla test ===\n")
 res = {}
 s = session(cfg.get("proxy") or None)
@@ -198,6 +195,9 @@ elif res.get("workers") == "ok":
     print('➡️  "telegram_mode": "relay"    (Cloudflare Worker üzerinden — en hızlı)')
 elif res.get("github") == "ok":
     print('➡️  "telegram_mode": "github"   (GitHub posta kutusu)')
+elif "ssl" in res.values():
+    print("⚠️  SSL hatası sürüyor. Son çare olarak doğrulamayı kapatabilirsin:")
+    print('   config.json → "ssl_verify": false   (sonra bu testi tekrar çalıştır)')
 elif "auth" in res.values():
     print("🔐 Proxy bulundu ama kullanıcı adı/şifre istiyor. Bu ekranın fotoğrafını gönder, çözümü (px) kuralım.")
 else:
