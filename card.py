@@ -1,5 +1,5 @@
 """
-Günün menüsünden emojili, görsel bir kart (HTML) üretir ve PNG'ye çevirir.
+Günün menüsünden görsel bir kart (HTML) üretir ve JPEG'e çevirir.
 """
 from __future__ import annotations
 
@@ -9,12 +9,22 @@ from datetime import date
 
 from menu import DayMenu, MenuItem, day_name, human_date, tr_lower
 
-SECTION_STYLE = {
-    "günün menüsü": ("🍽️", "#e8590c", "#fff4e6"),
-    "vejetaryen menü": ("🌱", "#2f9e44", "#ebfbee"),
-    "salata büfesi": ("🥗", "#0c8599", "#e3fafc"),
+# Tema: koyu lacivert + koyu kırmızı (TUSAŞ kurumsal tonları)
+NAVY_BG = "#07122a"      # sayfa
+NAVY_CARD = "#0b1b3d"    # kart
+NAVY_PANEL = "#11264f"   # bölüm zemini
+NAVY_LINE = "#22396b"    # çizgiler / kenarlar
+RED = "#a3161f"          # koyu kırmızı vurgu
+RED_DARK = "#6e0f16"
+TEXT = "#e8ecf4"
+MUTED = "#9aa8c4"
+
+# bölüm adı (küçük harf) -> sol kenar rengi
+SECTION_ACCENT = {
+    "günün menüsü": RED,
+    "salata büfesi": "#3d5fa8",
 }
-DEFAULT_SECTION = ("✨", "#5f3dc4", "#f3f0ff")
+DEFAULT_ACCENT = "#3d5fa8"
 
 
 def _e(s: str) -> str:
@@ -23,7 +33,7 @@ def _e(s: str) -> str:
 
 def format_notes(raw_notes: list[str]) -> list[str]:
     """Alerjen açıklamalarını at, bant bilgilerini kısalt:
-    "160 NOLU YEMEKHANE'DE, ... 1.4.5.8.9. BANTTA (ANKA) BULUNMAKTADIR." -> "📍 160 nolu yemekhane → 1.4.5.8.9. bant (ANKA)"
+    "160 NOLU YEMEKHANE'DE, ... 1.4.5.8.9. BANTTA (ANKA) BULUNMAKTADIR." -> "▸ 160 nolu yemekhane → 1.4.5.8.9. bant (ANKA)"
     """
     out = []
     pat = re.compile(r"(\d+)\s*NOLU YEMEKHANE.*?MEN[ÜU]\s+(.+?)\s*BANTTA\s*(\(.*?\))?", re.I)
@@ -34,10 +44,10 @@ def format_notes(raw_notes: list[str]) -> list[str]:
         m = pat.search(s)
         if m:
             extra = f" {m.group(3)}" if m.group(3) else ""
-            out.append(f"📍 {m.group(1)} nolu yemekhane → {tr_lower(m.group(2).strip())} bant{extra}")
+            out.append(f"▸ {m.group(1)} nolu yemekhane → {tr_lower(m.group(2).strip())} bant{extra}")
         else:
-            out.append("ℹ️ " + s[0] + tr_lower(s[1:]))
-    if any(o.startswith("📍") for o in out):
+            out.append("▸ " + s[0] + tr_lower(s[1:]))
+    if any("nolu yemekhane" in o for o in out):
         out.insert(0, "Buğday unsuz çorba ve vejetaryen menü bantları:")
     return out
 
@@ -55,7 +65,7 @@ def _row(it: MenuItem, veg: bool = False) -> str:
     kcal = f'<span class="kcal">{it.kcal} kcal</span>' if it.kcal else ""
     if veg:
         name = re.sub(r"^Vej\.\s*", "", it.name)
-        return (f'<li class="veg"><span class="nm"><span class="vtag">🌱 Vejetaryen</span>{_e(name)}</span>'
+        return (f'<li class="veg"><span class="nm"><span class="vtag">VEG OPSİYON</span>{_e(name)}</span>'
                 f'<span class="meta">{_badges(it)}{kcal}</span></li>')
     return f'<li><span class="nm">{_e(it.name)}</span><span class="meta">{_badges(it)}{kcal}</span></li>'
 
@@ -96,7 +106,7 @@ def build_html(menu: DayMenu, title: str, today: date | None = None) -> str:
     sections_html = []
     for sec in ([main] if main else []) + others:
         key = tr_lower(sec.title)
-        icon, color, bg = SECTION_STYLE.get(key, DEFAULT_SECTION)
+        accent = SECTION_ACCENT.get(key, DEFAULT_ACCENT)
         total = sum(i.kcal for i in sec.items if i.kcal)
         total_html = f'<span class="total">≈ {total:,} kcal</span>'.replace(",", ".") if total and key != "salata büfesi" else ""
         rows = []
@@ -105,66 +115,66 @@ def build_html(menu: DayMenu, title: str, today: date | None = None) -> str:
             if sec is main:
                 rows += [_row(v, veg=True) for v in alts.get(idx, [])]
         sections_html.append(
-            f'<section style="--c:{color};--bg:{bg}">'
-            f'<h2><span class="sic">{icon}</span>{_e(sec.title)}{total_html}</h2>'
+            f'<section style="--c:{accent}">'
+            f'<h2>{_e(sec.title)}{total_html}</h2>'
             f'<ul>{"".join(rows)}</ul></section>'
         )
 
     notes_html = "".join(f"<li>{_e(n)}</li>" for n in format_notes(menu.notes))
+    tag_html = f'<span class="tag">{rel}</span>' if rel else ""
 
     return f"""<!DOCTYPE html>
 <html lang="tr"><head><meta charset="utf-8">
 <style>
   * {{ box-sizing: border-box; margin: 0; padding: 0; }}
   body {{
-    font-family: "Segoe UI", "Segoe UI Emoji", system-ui, -apple-system, "Noto Sans", Arial, sans-serif;
-    background: #f1f3f9; width: 720px; padding: 22px;
+    font-family: Consolas, "DejaVu Sans Mono", "Courier New", monospace;
+    background: {NAVY_BG}; width: 720px; padding: 22px; color: {TEXT};
   }}
-  .card {{ background: #fff; border-radius: 26px; overflow: hidden;
-          box-shadow: 0 10px 30px rgba(20, 30, 70, .12); }}
+  .card {{ background: {NAVY_CARD}; border: 1px solid {NAVY_LINE}; border-radius: 22px; overflow: hidden;
+          box-shadow: 0 12px 34px rgba(0, 0, 0, .45); }}
   .hero {{
-    position: relative; color: #fff; padding: 26px 30px 24px;
-    background: radial-gradient(circle at 85% 15%, rgba(255,255,255,.18) 0 70px, transparent 71px),
-                linear-gradient(135deg, #1b2a6b 0%, #2d4bb5 55%, #e8590c 130%);
+    position: relative; padding: 26px 30px 22px;
+    background: linear-gradient(120deg, #0a1a40 0%, #102a63 58%, {RED_DARK} 100%);
+    border-bottom: 4px solid {RED};
   }}
-  .hero .loc {{ font-size: 15px; letter-spacing: 2.5px; text-transform: uppercase; opacity: .85; font-weight: 600; }}
-  .hero .date {{ font-size: 40px; font-weight: 800; margin-top: 6px; line-height: 1.1; }}
-  .hero .day {{ font-size: 22px; font-weight: 500; opacity: .95; margin-top: 2px; }}
-  .hero .big {{ position: absolute; right: 30px; top: 22px; font-size: 64px; }}
-  .tag {{ display: inline-block; background: #ffd43b; color: #1b2a6b; font-weight: 800; font-size: 13px;
-          padding: 4px 12px; border-radius: 999px; letter-spacing: 1.5px; margin-left: 10px; vertical-align: 6px; }}
-  .body {{ padding: 20px 22px 8px; }}
-  section {{ background: var(--bg); border-radius: 18px; padding: 14px 16px 8px; margin-bottom: 14px;
-             border-left: 6px solid var(--c); }}
-  h2 {{ font-size: 19px; color: var(--c); display: flex; align-items: center; margin-bottom: 6px; }}
-  h2 .sic {{ font-size: 22px; margin-right: 9px; }}
-  h2 .total {{ margin-left: auto; font-size: 13px; font-weight: 700; color: #fff; background: var(--c);
-               padding: 3px 10px; border-radius: 999px; }}
+  .hero .loc {{ font-size: 15px; letter-spacing: 3px; text-transform: uppercase; color: {MUTED}; font-weight: 700; }}
+  .hero .date {{ font-size: 40px; font-weight: 700; margin-top: 8px; line-height: 1.1; color: #fff; }}
+  .hero .day {{ font-size: 21px; margin-top: 4px; color: #c9d3e6; }}
+  .tag {{ display: inline-block; background: {RED}; color: #fff; font-weight: 700; font-size: 13px;
+          padding: 4px 12px; border-radius: 6px; letter-spacing: 2px; margin-left: 12px; vertical-align: 7px; }}
+  .body {{ padding: 20px 22px 6px; }}
+  section {{ background: {NAVY_PANEL}; border: 1px solid {NAVY_LINE}; border-left: 6px solid var(--c);
+             border-radius: 14px; padding: 14px 16px 8px; margin-bottom: 14px; }}
+  h2 {{ font-size: 18px; color: #fff; display: flex; align-items: center; margin-bottom: 6px;
+        letter-spacing: 1px; text-transform: uppercase; }}
+  h2 .total {{ margin-left: auto; font-size: 13px; font-weight: 700; color: #fff; background: {RED};
+               padding: 3px 10px; border-radius: 6px; letter-spacing: 0; text-transform: none; }}
   ul {{ list-style: none; }}
-  li {{ display: flex; align-items: center; padding: 8px 4px; border-bottom: 1px dashed rgba(0,0,0,.08);
-        font-size: 18px; color: #212529; }}
+  li {{ display: flex; align-items: center; padding: 8px 4px; border-bottom: 1px dashed rgba(255,255,255,.09);
+        font-size: 18px; color: {TEXT}; }}
   li:last-child {{ border-bottom: 0; }}
-  li.veg {{ background: #ebfbee; border: 1px solid #b2f2bb; border-radius: 12px; padding: 7px 10px;
-            margin: 4px 0 6px; font-size: 17px; }}
-  .vtag {{ display: inline-block; font-size: 12px; font-weight: 700; color: #fff; background: #2f9e44;
-           border-radius: 999px; padding: 2px 9px; margin-right: 9px; vertical-align: 2px; }}
-  .nm {{ flex: 1; font-weight: 600; }}
+  li.veg {{ background: rgba(163, 22, 31, .16); border: 1px solid rgba(163, 22, 31, .55); border-radius: 10px;
+            padding: 7px 10px; margin: 4px 0 6px; font-size: 17px; }}
+  .vtag {{ display: inline-block; font-size: 12px; font-weight: 700; color: #fff; background: {RED};
+           border-radius: 5px; padding: 2px 8px; margin-right: 10px; vertical-align: 2px; letter-spacing: 1px; }}
+  .nm {{ flex: 1; font-weight: 700; }}
   .meta {{ display: flex; align-items: center; gap: 6px; }}
-  .al {{ font-size: 14px; border-radius: 8px; padding: 2px 5px; }}
-  .al.w {{ background: #ffec99; }}
-  .al.m {{ background: #a5d8ff; }}
-  .kcal {{ font-size: 13px; color: #495057; background: #fff; border: 1px solid #dee2e6;
-           border-radius: 999px; padding: 2px 9px; font-weight: 600; white-space: nowrap; }}
-  .foot {{ padding: 4px 26px 20px; color: #6c757d; font-size: 13px; }}
-  .legend {{ display: flex; gap: 18px; margin-bottom: 8px; font-weight: 600; color: #495057; }}
-  .foot ul li {{ font-size: 12.5px; color: #6c757d; border: 0; padding: 2px 0; display: block; }}
+  .al {{ font-size: 14px; border-radius: 6px; padding: 2px 5px;
+         font-family: "Segoe UI Emoji", "Noto Color Emoji", "Apple Color Emoji", sans-serif; }}
+  .al.w {{ background: #4a3f12; }}
+  .al.m {{ background: #1d3f6e; }}
+  .kcal {{ font-size: 13px; color: #c9d3e6; background: {NAVY_CARD}; border: 1px solid {NAVY_LINE};
+           border-radius: 6px; padding: 2px 8px; white-space: nowrap; }}
+  .foot {{ padding: 4px 26px 20px; color: {MUTED}; font-size: 13px; }}
+  .legend {{ display: flex; gap: 22px; margin-bottom: 10px; color: #c9d3e6; }}
+  .foot ul li {{ font-size: 12.5px; color: {MUTED}; border: 0; padding: 2px 0; display: block; }}
 </style></head>
 <body><div class="card">
   <div class="hero">
-    <div class="loc">🏭 {_e(location)} · Yemek Menüsü</div>
-    <div class="date">{d.day} {_e(human_date(d).split(' ')[1])}{f'<span class="tag">{rel}</span>' if rel else ''}</div>
+    <div class="loc">{_e(location)} · Yemek Menüsü</div>
+    <div class="date">{d.day} {_e(human_date(d).split(' ')[1])}{tag_html}</div>
     <div class="day">{_e(day_name(d))} · {d.year}</div>
-    <div class="big">🍽️</div>
   </div>
   <div class="body">{''.join(sections_html)}</div>
   <div class="foot">
@@ -190,7 +200,7 @@ def render_png(page_html: str, cfg: dict) -> bytes:
 def build_text(menu: DayMenu, title: str) -> str:
     """Görsel üretilemezse gönderilecek HTML biçimli metin (Telegram parse_mode=HTML)."""
     d = menu.date
-    lines = [f"<b>🍽️ {_e(title)}</b>", f"📅 <b>{human_date(d)} · {day_name(d)}</b>", ""]
+    lines = [f"<b>{_e(title)}</b>", f"<b>{human_date(d)} · {day_name(d)}</b>", ""]
     def line(it, prefix=""):
         kcal = f" <i>({it.kcal} kcal)</i>" if it.kcal else ""
         al = (" 🌾" if it.wheat else "") + (" 🥛" if it.milk else "")
@@ -198,11 +208,10 @@ def build_text(menu: DayMenu, title: str) -> str:
 
     main, alts, others = split_menu(menu)
     for sec in ([main] if main else []) + others:
-        icon = SECTION_STYLE.get(tr_lower(sec.title), DEFAULT_SECTION)[0]
-        lines.append(f"{icon} <b>{_e(sec.title)}</b>")
+        lines.append(f"<b>{_e(sec.title)}</b>")
         for idx, it in enumerate(sec.items):
             lines.append("• " + line(it))
             if sec is main:
-                lines += [line(v, "   🌱 <i>Vejetaryen:</i> ") for v in alts.get(idx, [])]
+                lines += [line(v, "   <i>Veg Opsiyon:</i> ") for v in alts.get(idx, [])]
         lines.append("")
     return "\n".join(lines).strip()
