@@ -9,54 +9,12 @@ from datetime import date
 
 from menu import DayMenu, MenuItem, day_name, human_date, tr_lower
 
-# Windows 10'da da görünsün diye yalnızca eski/yaygın emojiler kullanıldı.
-EMOJI_RULES: list[tuple[tuple[str, ...], str]] = [
-    (("çorba",), "🍲"),
-    (("çiğköfte", "çiğ köfte", "dürüm", "tantuni", "lavaş"), "🌯"),
-    (("balık", "somon", "hamsi", "levrek", "çupra", "uskumru", "palamut"), "🐟"),
-    (("tavuk", "piliç", "hindi", "kanat", "baget"), "🍗"),
-    (("köfte", "kebab", "kebap", "kavurma", "biftek", "rosto", "et ", "etli", "tava", "külbastı",
-      "bonfile", "pirzola", "kuşbaşı", "döner", "sucuk"), "🍖"),
-    (("pide", "lahmacun", "pizza"), "🍕"),
-    (("börek", "poğaça", "gözleme"), "🥐"),
-    (("mantı",), "🥟"),
-    (("makarna", "erişte", "spagetti", "penne", "fettucini", "lazanya"), "🍝"),
-    (("pilav", "bulgur", "pirinç"), "🍚"),
-    (("ayran", "komposto", "kola", "gazoz", "soda", "şalgam", "içecek", "limonata", "çay", "meyve suyu"), "🥤"),
-    (("sütlaç", "keşkül", "muhallebi", "puding", "panna cotta", "kazandibi", "tavuk göğsü", "güllaç",
-      "supangle"), "🍮"),
-    (("tiramisu", "kek", "pasta", "tatlı", "baklava", "revani", "kadayıf", "şekerpare", "trileçe",
-      "brownie", "profiterol", "lokma", "helva", "künefe", "cheesecake", "sufle"), "🍰"),
-    (("meyve", "elma", "portakal", "mandalina", "muz", "armut"), "🍎"),
-    (("cacık", "haydari", "yoğurt", "boran", "tarator"), "🥛"),
-    (("turşu", "kornişon"), "🥒"),
-    (("brokoli",), "🥦"),
-    (("havuç",), "🥕"),
-    (("mantar",), "🍄"),
-    (("patates",), "🥔"),
-    (("mısır",), "🌽"),
-    (("domates",), "🍅"),
-    (("biber",), "🌶️"),
-    (("peynir", "kaşar"), "🧀"),
-    (("salata", "zeytinyağlı", "piyaz", "lahana", "ıspanak", "karnabahar", "fasulye", "fasülye",
-      "barbunya", "nohut", "bezelye", "pancar", "bakla", "kabak", "patlıcan", "sebze", "graten",
-      "vej."), "🥗"),
-]
-
 SECTION_STYLE = {
     "günün menüsü": ("🍽️", "#e8590c", "#fff4e6"),
     "vejetaryen menü": ("🌱", "#2f9e44", "#ebfbee"),
     "salata büfesi": ("🥗", "#0c8599", "#e3fafc"),
 }
 DEFAULT_SECTION = ("✨", "#5f3dc4", "#f3f0ff")
-
-
-def emoji_for(item: MenuItem) -> str:
-    n = tr_lower(item.name) + " "
-    for keys, emo in EMOJI_RULES:
-        if any(k in n for k in keys):
-            return emo
-    return "🍴"
 
 
 def _e(s: str) -> str:
@@ -84,6 +42,45 @@ def format_notes(raw_notes: list[str]) -> list[str]:
     return out
 
 
+def _badges(it: MenuItem) -> str:
+    b = ""
+    if it.wheat:
+        b += '<span class="al w" title="Buğday unu">🌾</span>'
+    if it.milk:
+        b += '<span class="al m" title="Süt ürünü">🥛</span>'
+    return b
+
+
+def _row(it: MenuItem, veg: bool = False) -> str:
+    kcal = f'<span class="kcal">{it.kcal} kcal</span>' if it.kcal else ""
+    if veg:
+        name = re.sub(r"^Vej\.\s*", "", it.name)
+        return (f'<li class="veg"><span class="nm"><span class="vtag">🌱 Vejetaryen</span>{_e(name)}</span>'
+                f'<span class="meta">{_badges(it)}{kcal}</span></li>')
+    return f'<li><span class="nm">{_e(it.name)}</span><span class="meta">{_badges(it)}{kcal}</span></li>'
+
+
+def _norm(name: str) -> str:
+    return re.sub(r"[^a-zçğıöşü0-9]", "", tr_lower(name))
+
+
+def split_menu(menu: DayMenu):
+    """(günün menüsü, {index: [vejetaryen alternatifler]}, diğer bölümler).
+    Vejetaryen menüdeki, günün menüsünde olmayan yemekler (ör. ana yemek) alternatif olarak döner;
+    aynı sıradaki yemeğin hemen altına yerleştirilir."""
+    main = next((x for x in menu.sections if tr_lower(x.title) == "günün menüsü"), None)
+    veg = next((x for x in menu.sections if tr_lower(x.title).startswith("vejetaryen")), None)
+    if not main or not veg:
+        return main, {}, [x for x in menu.sections if x is not main]
+    main_names = {_norm(i.name) for i in main.items}
+    alts: dict[int, list[MenuItem]] = {}
+    for idx, it in enumerate(veg.items):
+        if _norm(it.name) not in main_names:
+            alts.setdefault(min(idx, len(main.items) - 1), []).append(it)
+    others = [x for x in menu.sections if x is not main and x is not veg]
+    return main, alts, others
+
+
 def _relative_tag(d: date, today: date) -> str:
     diff = (d - today).days
     return {0: "BUGÜN", 1: "YARIN", -1: "DÜN"}.get(diff, "")
@@ -95,25 +92,18 @@ def build_html(menu: DayMenu, title: str, today: date | None = None) -> str:
     rel = _relative_tag(d, today)
     location = title.replace("Yemek Menüsü", "").strip() or "Yemekhane"
 
+    main, alts, others = split_menu(menu)
     sections_html = []
-    for sec in menu.sections:
+    for sec in ([main] if main else []) + others:
         key = tr_lower(sec.title)
         icon, color, bg = SECTION_STYLE.get(key, DEFAULT_SECTION)
         total = sum(i.kcal for i in sec.items if i.kcal)
         total_html = f'<span class="total">≈ {total:,} kcal</span>'.replace(",", ".") if total and key != "salata büfesi" else ""
         rows = []
-        for it in sec.items:
-            badges = ""
-            if it.wheat:
-                badges += '<span class="al w" title="Buğday unu">🌾</span>'
-            if it.milk:
-                badges += '<span class="al m" title="Süt ürünü">🥛</span>'
-            kcal = f'<span class="kcal">{it.kcal} kcal</span>' if it.kcal else ""
-            rows.append(
-                f'<li><span class="ic">{emoji_for(it)}</span>'
-                f'<span class="nm">{_e(it.name)}</span>'
-                f'<span class="meta">{badges}{kcal}</span></li>'
-            )
+        for idx, it in enumerate(sec.items):
+            rows.append(_row(it))
+            if sec is main:
+                rows += [_row(v, veg=True) for v in alts.get(idx, [])]
         sections_html.append(
             f'<section style="--c:{color};--bg:{bg}">'
             f'<h2><span class="sic">{icon}</span>{_e(sec.title)}{total_html}</h2>'
@@ -151,10 +141,13 @@ def build_html(menu: DayMenu, title: str, today: date | None = None) -> str:
   h2 .total {{ margin-left: auto; font-size: 13px; font-weight: 700; color: #fff; background: var(--c);
                padding: 3px 10px; border-radius: 999px; }}
   ul {{ list-style: none; }}
-  li {{ display: flex; align-items: center; padding: 7px 2px; border-bottom: 1px dashed rgba(0,0,0,.08);
+  li {{ display: flex; align-items: center; padding: 8px 4px; border-bottom: 1px dashed rgba(0,0,0,.08);
         font-size: 18px; color: #212529; }}
   li:last-child {{ border-bottom: 0; }}
-  .ic {{ width: 38px; font-size: 23px; flex-shrink: 0; }}
+  li.veg {{ background: #ebfbee; border: 1px solid #b2f2bb; border-radius: 12px; padding: 7px 10px;
+            margin: 4px 0 6px; font-size: 17px; }}
+  .vtag {{ display: inline-block; font-size: 12px; font-weight: 700; color: #fff; background: #2f9e44;
+           border-radius: 999px; padding: 2px 9px; margin-right: 9px; vertical-align: 2px; }}
   .nm {{ flex: 1; font-weight: 600; }}
   .meta {{ display: flex; align-items: center; gap: 6px; }}
   .al {{ font-size: 14px; border-radius: 8px; padding: 2px 5px; }}
@@ -198,11 +191,18 @@ def build_text(menu: DayMenu, title: str) -> str:
     """Görsel üretilemezse gönderilecek HTML biçimli metin (Telegram parse_mode=HTML)."""
     d = menu.date
     lines = [f"<b>🍽️ {_e(title)}</b>", f"📅 <b>{human_date(d)} · {day_name(d)}</b>", ""]
-    for sec in menu.sections:
+    def line(it, prefix=""):
+        kcal = f" <i>({it.kcal} kcal)</i>" if it.kcal else ""
+        al = (" 🌾" if it.wheat else "") + (" 🥛" if it.milk else "")
+        return f"{prefix}{_e(it.name)}{kcal}{al}"
+
+    main, alts, others = split_menu(menu)
+    for sec in ([main] if main else []) + others:
         icon = SECTION_STYLE.get(tr_lower(sec.title), DEFAULT_SECTION)[0]
         lines.append(f"{icon} <b>{_e(sec.title)}</b>")
-        for it in sec.items:
-            kcal = f" <i>({it.kcal} kcal)</i>" if it.kcal else ""
-            lines.append(f"{emoji_for(it)} {_e(it.name)}{kcal}")
+        for idx, it in enumerate(sec.items):
+            lines.append("• " + line(it))
+            if sec is main:
+                lines += [line(v, "   🌱 <i>Vejetaryen:</i> ") for v in alts.get(idx, [])]
         lines.append("")
     return "\n".join(lines).strip()
