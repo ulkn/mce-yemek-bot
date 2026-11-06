@@ -85,7 +85,7 @@ def _row(it: MenuItem, veg: bool = False) -> str:
     kcal = f'<span class="kcal">{it.kcal} kcal</span>' if it.kcal else ""
     if veg:
         name = re.sub(r"^Vej\.\s*", "", it.name)
-        return (f'<li class="veg"><span class="nm"><span class="vtag">VEG OPSİYON</span>{_e(name)}</span>'
+        return (f'<li class="veg"><span class="nm"><span class="vtag">Vej.</span>{_e(name)}</span>'
                 f'<span class="meta">{_badges(it)}{kcal}</span></li>')
     return f'<li><span class="nm">{_e(it.name)}</span><span class="meta">{_badges(it)}{kcal}</span></li>'
 
@@ -232,6 +232,6 @@ def build_text(menu: DayMenu, title: str) -> str:
         for idx, it in enumerate(sec.items):
             lines.append("• " + line(it))
             if sec is main:
-                lines += [line(v, "   <i>Veg Opsiyon:</i> ") for v in alts.get(idx, [])]
+                lines += [line(v, "   <i>Vej.:</i> ") for v in alts.get(idx, [])]
         lines.append("")
     return "\n".join(lines).strip()
