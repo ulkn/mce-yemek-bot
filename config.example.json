@@ -1,0 +1,26 @@
+{
+  "telegram_mode": "relay",
+  "relay_url": "https://mce-yemek-worker.cahit-tr.workers.dev",
+  "telegram_token": "BURAYA_BOTFATHER_TOKEN",
+  "allowed_chat_ids": [],
+
+  "github": {
+    "repo": "ulkn/mce-yemek-bot",
+    "token": "BURAYA_GITHUB_FINE_GRAINED_TOKEN",
+    "branch": "posta",
+    "poll_seconds": 6
+  },
+
+  "menu_url": "https://erp.tai.com.tr/intranet/portal/meal/1",
+  "max_age_minutes": 30,
+
+  "browser_channel": "msedge",
+  "browser_profile_dir": "browser_profile",
+  "cookie_file": "portal_cookies.json",
+  "cache_file": "menu_cache.json",
+  "cache_minutes": 120,
+  "ignore_https_errors": false,
+
+  "proxy": "",
+  "ca_bundle": ""
+}

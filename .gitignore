@@ -1,0 +1,12 @@
+# Kişisel / çalışma dosyaları — repoya girmesin
+config.json
+browser_profile/
+portal_cookies.json
+menu_cache.json
+bot.log
+card_test.jpg
+.venv/
+__pycache__/
+*.pyc
+worker/.wrangler/
+worker/node_modules/

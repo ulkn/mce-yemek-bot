@@ -1,0 +1,35 @@
+name: Worker'ı yayınla
+
+on:
+  push:
+    branches: [main]
+    paths: ["worker/**", ".github/workflows/deploy-worker.yml"]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      WEBHOOK_SECRET: ${{ secrets.WEBHOOK_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cloudflare secret'ları eksik mi?
+        if: env.CF_TOKEN == ''
+        run: |
+          echo "::warning::CLOUDFLARE_API_TOKEN ve CLOUDFLARE_ACCOUNT_ID repo secret'larını ekle (README → Worker'ı yayınla)."
+
+      - name: Wrangler ile yayınla
+        if: env.CF_TOKEN != ''
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: worker
+
+      - name: Webhook / komut menüsü ayarı (/setup)
+        if: env.CF_TOKEN != '' && env.WEBHOOK_SECRET != ''
+        run: |
+          sleep 5
+          curl -sS --fail-with-body "https://mce-yemek-worker.cahit-tr.workers.dev/setup?key=${WEBHOOK_SECRET}"

@@ -1,0 +1,24 @@
+# GitHub Actions (.github/workflows/deploy-worker.yml) bu dosyayla yayınlar.
+# Elle:  cd worker && npx wrangler deploy
+name = "mce-yemek-worker"
+main = "worker.js"
+compatibility_date = "2025-01-01"
+workers_dev = true
+
+# Panelden eklenen değişkenleri (ALLOWED_CHAT_IDS vb.) silme
+keep_vars = true
+
+[vars]
+# GitHub posta kutusu modu yalnızca GITHUB_TOKEN secret'ı eklenince devreye girer.
+# Token yoksa Worker "relay" modunda çalışır.
+GITHUB_REPO = "ulkn/mce-yemek-bot"
+GITHUB_BRANCH = "posta"
+
+# GitHub modunda outbox'ı dakikada bir işler (relay modunda bir şey yapmaz)
+[triggers]
+crons = ["* * * * *"]
+
+# İsteğe bağlı KV (file_id önbelleği): panelde "KV" adıyla bağla ya da burada tanımla
+# [[kv_namespaces]]
+# binding = "KV"
+# id = "..."
