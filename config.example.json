@@ -14,6 +14,14 @@
   "menu_url": "https://erp.tai.com.tr/intranet/portal/meal/1",
   "max_age_minutes": 30,
 
+  "gunluk_bildirim": {
+    "aktif": true,
+    "saat": "08:00",
+    "son_saat": "11:00",
+    "tekrar_dakika": 10,
+    "sadece_hafta_ici": true
+  },
+
   "browser_channel": "msedge",
   "browser_profile_dir": "browser_profile",
   "cookie_file": "portal_cookies.json",

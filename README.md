@@ -22,8 +22,23 @@ GitHub modunda Telegram token'ı PC'de bile durmaz, yalnızca Worker'da bulunur.
 /yemek yarın | dün | cuma | haftaya salı | 12 kasım | 12.11 | +2
 /hafta                 → menüsü olan günler (butonlarla)
 /yenile                → portaldan yeniden çek
+/bildirim              → sabah menüsü durumu · /bildirim kapat · /bildirim aç · /bildirim şimdi
 ```
 Kartın altındaki ◀️ / ▶️ butonları aynı mesajda günler arasında gezer.
+
+### ☀️ Her sabah otomatik menü
+Bot çalışıyorsa her sabah **08:00**'de portalı yeniden okur (güncel sürüm) ve o günün kartını
+`allowed_chat_ids` içindeki sohbetlere kendiliğinden gönderir. Ayrıca bir Windows görevi kurmak gerekmez.
+- Bilgisayar 08:00'de kapalı/uykudaysa ve **11:00'e kadar** bot açılırsa menü o an gönderilir.
+- Portal okunamazsa (ör. oturum düştüyse) bir kez uyarır, 10 dakikada bir tekrar dener.
+- Hafta sonu gönderilmez. Bugünün menüsü portalda yoksa kısa bir bilgi mesajı gelir.
+- Günde bir kez gönderilir; bot yeniden başlasa da tekrar etmez (`gunluk_durum.json`).
+
+İsteğe bağlı ayarlar (`config.json`; yazılmazsa aşağıdaki varsayılanlar kullanılır):
+```json
+"gunluk_bildirim": { "aktif": true, "saat": "08:00", "son_saat": "11:00",
+                     "tekrar_dakika": 10, "sadece_hafta_ici": true }
+```
 
 ---
 

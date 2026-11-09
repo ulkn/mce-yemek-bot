@@ -3,6 +3,7 @@ config.json
 browser_profile/
 portal_cookies.json
 menu_cache.json
+gunluk_durum.json
 bot.log
 card_test.jpg
 .venv/

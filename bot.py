@@ -6,6 +6,9 @@ TUSAŞ Yemek Menüsü Telegram Botu (şirket bilgisayarında çalışır)
   python bot.py --test       -> portaldan menüyü çeker, bugünün kartını card_test.png'ye yazar
   python bot.py --test --html kayitli_sayfa.mhtml   -> kayıtlı sayfadan dener (ağ gerekmez)
 
+Her sabah (varsayılan 08:00) portaldan menüyü yeniden çekip o günün kartını kendiliğinden gönderir.
+Ayarlar: config.json → "gunluk_bildirim"; Telegram'dan /bildirim ile aç/kapat.
+
 Telegram'a ulaşma şekli config.json → telegram_mode: relay | github | direct  (bkz. transports.py)
 """
 from __future__ import annotations
@@ -19,7 +22,8 @@ import re
 import socket
 import sys
 import time
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
+from datetime import time as dtime
 from pathlib import Path
 
 BASE = Path(__file__).resolve().parent
@@ -125,6 +129,14 @@ def _safe_date(year: int | None, month: int, day: int, today: date) -> date | No
         return None
 
 
+def _parse_hhmm(value, default: str) -> dtime:
+    for v in (value, default):
+        m = re.fullmatch(r"\s*(\d{1,2})[:.](\d{2})\s*", str(v or ""))
+        if m and int(m.group(1)) < 24 and int(m.group(2)) < 60:
+            return dtime(int(m.group(1)), int(m.group(2)))
+    return dtime(8, 0)
+
+
 # --------------------------------------------------------------------------- #
 # Telegram
 # --------------------------------------------------------------------------- #
@@ -136,6 +148,34 @@ class YemekBot:
         self.store = MenuStore(cfg)
         self.allowed = {str(x) for x in cfg.get("allowed_chat_ids", [])}
         self.png_cache: dict[str, bytes] = {}
+
+        # ---- her sabah otomatik gönderim ----
+        dn = cfg.get("gunluk_bildirim") or {}
+        self.daily_cfg_on = bool(dn.get("aktif", True))
+        self.daily_at = _parse_hhmm(dn.get("saat"), "08:00")
+        self.daily_until = _parse_hhmm(dn.get("son_saat"), "11:00")
+        self.daily_retry = max(1, int(dn.get("tekrar_dakika", 10))) * 60
+        self.daily_weekdays_only = bool(dn.get("sadece_hafta_ici", True))
+        self.state_file = BASE / "gunluk_durum.json"
+        self.state = self._load_state()
+        self._daily_next_try = 0.0
+        self._daily_warned: date | None = None
+
+    # ---- kalıcı durum (son gönderim tarihi, /bildirim aç/kapat) ----
+    def _load_state(self) -> dict:
+        try:
+            return json.loads(self.state_file.read_text(encoding="utf-8"))
+        except Exception:
+            return {}
+
+    def _save_state(self):
+        try:
+            self.state_file.write_text(json.dumps(self.state, ensure_ascii=False, indent=1), encoding="utf-8")
+        except Exception as e:
+            log.warning("gunluk_durum.json yazılamadı: %s", e)
+
+    def _daily_on(self) -> bool:
+        return self.state.get("aktif", self.daily_cfg_on)
 
     # ---- menü + kart ----
     def _ensure_menu(self, force: bool = False) -> str | None:
@@ -200,7 +240,11 @@ class YemekBot:
                      f"Portalda görünen aralık: {rng}",
                 reply_markup=self._week_keyboard())
 
-        caption = self._caption(d, warn)
+        return self._deliver(chat_id, d, menu, warn, edit_message_id)
+
+    def _deliver(self, chat_id, d: date, menu, warn: str | None,
+                 edit_message_id: int | None = None, header: str = ""):
+        caption = header + self._caption(d, warn)
         kb = self._keyboard(d)
         try:
             png = self._card(d)
@@ -216,6 +260,97 @@ class YemekBot:
                                 media=media, reply_markup=kb, files=files, http_timeout=60)
         return self.tg.call("sendPhoto", chat_id=chat_id, caption=caption, parse_mode="HTML",
                             reply_markup=kb, files=files, http_timeout=60)
+
+    # ---- her sabah otomatik menü ----
+    def check_daily(self, now: datetime | None = None):
+        """Ana döngüde sık sık çağrılır. Saati geldiyse bugünün menüsünü bir kez gönderir."""
+        if not self._daily_on() or not self.allowed:
+            return
+        now = now or datetime.now()
+        today = now.date()
+        if self.state.get("son_gonderim") == today.isoformat():
+            return
+        if self.daily_weekdays_only and today.weekday() >= 5:
+            return
+        start = datetime.combine(today, self.daily_at)
+        end = datetime.combine(today, self.daily_until)
+        if end <= start:
+            end = start + timedelta(hours=3)
+        if not (start <= now < end) or time.time() < self._daily_next_try:
+            return
+        self._daily_next_try = time.time() + self.daily_retry
+        final = now + timedelta(seconds=self.daily_retry) >= end   # son deneme mi?
+        self.send_daily(today, final=final)
+
+    def send_daily(self, today: date, final: bool = True, mark: bool = True) -> bool:
+        log.info("Günlük menü: portal kontrol ediliyor (%s)", today.isoformat())
+        warn = self._ensure_menu(force=True)      # her sabah güncel sürümü çek
+        menu = self.store.get(today)
+
+        if warn and not final:
+            # Portal okunamadı: bir kez haber ver, sonra sessizce tekrar dene
+            if self._daily_warned != today:
+                self._daily_warned = today
+                self._broadcast(warn + f"\n\n⏰ Sabah menüsü için {self.daily_retry // 60} dk sonra tekrar deneyeceğim.")
+            return False
+
+        if not menu:
+            published_after = any(d > today for d in self.store.available())
+            if not final and not published_after and today.weekday() < 5:
+                log.info("Bugünün menüsü portalda henüz yok, sonra tekrar denenecek")
+                return False
+            if today.weekday() < 5:
+                self._broadcast(f"🤷 <b>{human_date(today)} {day_name(today)}</b> için portalda menü bulunamadı.")
+            if mark:
+                self._mark_daily(today)
+            return True
+
+        ok = False
+        for cid in self.allowed:
+            try:
+                self._deliver(cid, today, menu, warn, header="☀️ <b>Günaydın! Bugünün menüsü</b>\n")
+                ok = True
+            except Exception:
+                log.exception("Günlük menü %s sohbetine gönderilemedi", cid)
+        if ok:
+            log.info("Günlük menü gönderildi")
+            if mark:
+                self._mark_daily(today)
+        return ok
+
+    def _mark_daily(self, d: date):
+        self.state["son_gonderim"] = d.isoformat()
+        self._save_state()
+
+    def _broadcast(self, text: str):
+        for cid in self.allowed:
+            try:
+                self.tg.call("sendMessage", chat_id=cid, text=text, parse_mode="HTML")
+            except Exception as e:
+                log.warning("Mesaj gönderilemedi (%s): %s", cid, e)
+
+    def _daily_status(self) -> str:
+        on = self._daily_on()
+        days = "hafta içi her gün" if self.daily_weekdays_only else "her gün"
+        last = self.state.get("son_gonderim")
+        return (f"⏰ <b>Sabah menüsü: {'AÇIK ✅' if on else 'KAPALI ⛔'}</b>\n"
+                f"Saat: {self.daily_at.strftime('%H:%M')} ({days})\n"
+                f"Bilgisayar o saatte kapalıysa {self.daily_until.strftime('%H:%M')}'e kadar açıldığında gönderilir.\n"
+                f"Son gönderim: {human_date(date.fromisoformat(last)) if last else '-'}\n\n"
+                "<code>/bildirim kapat</code> · <code>/bildirim aç</code> · <code>/bildirim şimdi</code>")
+
+    def handle_bildirim(self, chat_id, text: str):
+        arg = _ascii(" ".join(text.split()[1:]))
+        if arg in ("kapat", "kapali", "durdur", "off"):
+            self.state["aktif"] = False
+            self._save_state()
+        elif arg in ("ac", "acik", "baslat", "on"):
+            self.state["aktif"] = True
+            self._save_state()
+        elif arg in ("simdi", "test", "gonder"):
+            self.send_daily(date.today(), final=True, mark=False)
+            return
+        self.tg.call("sendMessage", chat_id=chat_id, parse_mode="HTML", text=self._daily_status())
 
     def _week_keyboard(self) -> dict:
         btns = [{"text": f"{'📍 ' if d == date.today() else ''}{d.day} {SHORT_DAYS[d.weekday()]}",
@@ -245,6 +380,8 @@ class YemekBot:
             days = self.store.available()
             self.tg.call("sendMessage", chat_id=chat_id, parse_mode="HTML",
                          text=warn or f"🔄 Menü yenilendi: {human_date(days[0])} – {human_date(days[-1])}")
+        elif cmd in ("/bildirim", "/sabah"):
+            self.handle_bildirim(chat_id, text)
         elif cmd in ("/hafta", "/gunler"):
             warn = self._ensure_menu()
             self.tg.call("sendMessage", chat_id=chat_id, parse_mode="HTML",
@@ -306,8 +443,15 @@ class YemekBot:
                 except Exception:
                     pass
 
+        if self._daily_on():
+            log.info("Sabah menüsü açık: her %s %s", "hafta içi" if self.daily_weekdays_only else "gün",
+                     self.daily_at.strftime("%H:%M"))
         offset = None
         while True:
+            try:
+                self.check_daily()
+            except Exception:
+                log.exception("Günlük menü kontrolü başarısız")
             try:
                 updates = self.tg.get_updates(offset)
             except Exception as e:
@@ -336,6 +480,7 @@ COMMANDS = [
     {"command": "yemek", "description": "Menü: /yemek [bugün|yarın|cuma|12.11]"},
     {"command": "hafta", "description": "Menüsü olan günleri listele"},
     {"command": "yenile", "description": "Menüyü portaldan yeniden çek"},
+    {"command": "bildirim", "description": "Sabah 08:00 menüsü: durum / aç / kapat"},
     {"command": "yardim", "description": "Kullanım"},
 ]
 
@@ -346,7 +491,9 @@ HELP = (
     "<code>/yemek cuma</code> · <code>/yemek haftaya salı</code>\n"
     "<code>/yemek 12 kasım</code> · <code>/yemek 12.11</code> · <code>/yemek +2</code>\n"
     "<code>/hafta</code> → menüsü olan günler\n"
-    "<code>/yenile</code> → portaldan yeniden çek\n\n"
+    "<code>/yenile</code> → portaldan yeniden çek\n"
+    "<code>/bildirim</code> → sabah 08:00 menüsü (aç / kapat / şimdi)\n\n"
+    "Her sabah 08:00'de bugünün menüsü kendiliğinden gelir.\n"
     "Kartın altındaki ◀️ ▶️ ile günler arasında gezebilirsin."
 )
 
