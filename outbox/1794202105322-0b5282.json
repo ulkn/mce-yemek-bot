@@ -1,0 +1,1 @@
+{"ops": [{"method": "sendMessage", "params": {"chat_id": 1507736373, "parse_mode": "HTML", "text": "⏰ <b>Sabah menüsü: AÇIK ✅</b>\nSaat: 08:00 (hafta içi her gün)\nBilgisayar o saatte kapalıysa 11:00'e kadar açıldığında gönderilir.\nSon gönderim: 9 Kasım 2026\n\n<code>/bildirim kapat</code> · <code>/bildirim aç</code> · <code>/bildirim şimdi</code>"}, "files": {}}]}
